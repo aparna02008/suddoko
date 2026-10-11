@@ -1,0 +1,295 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SudokuAI - CSP Solver</title>
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5fc;color:#202744;font-family:Arial,sans-serif}
+main{max-width:1100px;width:94%;margin:30px auto}
+header{display:flex;justify-content:space-between;align-items:center;padding:18px 0;border-bottom:1px solid #ddd}
+.brand{font-size:25px;font-weight:bold;color:#5146d9}
+.tag{font-size:12px;color:#18875b;background:#e0f8ec;padding:10px;border-radius:20px}
+.hero{padding:35px 0}
+.hero small{color:#5c50dc;font-weight:bold;letter-spacing:2px}
+h1{font-size:clamp(34px,5vw,52px);margin:14px 0}
+h1 span{color:#6255e7}
+p{color:#727b93;line-height:1.6}
+.layout{display:grid;grid-template-columns:1.15fr .85fr;gap:22px}
+.card{background:white;padding:22px;border-radius:18px;box-shadow:0 8px 30px #2027440d;margin-bottom:18px}
+h2{font-size:22px;margin-top:8px}
+.board{display:grid;grid-template-columns:repeat(9,minmax(0,1fr));border:2px solid #303951}
+.cell{width:100%;aspect-ratio:1;min-width:0;padding:0;text-align:center;border:0;border-right:1px solid #d5daea;border-bottom:1px solid #d5daea;font-size:clamp(13px,2.5vw,23px);color:#5146d9;background:white}
+.cell:nth-child(3n){border-right:2px solid #59627b}
+.cell:nth-child(9n){border-right:0}
+.cell:nth-child(n+19):nth-child(-n+27),.cell:nth-child(n+46):nth-child(-n+54){border-bottom:2px solid #59627b}
+.cell:nth-child(n+73){border-bottom:0}
+.cell.given{background:#edf0fa;color:#202744;font-weight:bold}
+.cell.solved{background:#dff8eb;color:#14744c}
+.cell.conflict{background:#ffe3e5;color:#bd2335}
+.cell:focus{outline:2px solid #6255e7;outline-offset:-2px;background:#fff5cc}
+button{cursor:pointer;border:0;border-radius:9px;padding:13px 15px;font-weight:bold;font-size:14px}
+.primary{width:100%;background:#6255e7;color:white;margin:15px 0 10px}
+.secondary{background:#f0f1fa;color:#303951;margin:10px 5px 0 0}
+.outline{width:100%;background:white;border:1px solid #d9ddec;color:#303951}
+button:hover{filter:brightness(.96)}
+.status{padding:13px;background:#f0f2fa;border-radius:9px;font-size:13px;line-height:1.5;margin-top:15px}
+.good{background:#e0f8ec;color:#176b49}
+.bad{background:#ffe7e8;color:#a51f30}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:15px}
+.stats div{padding:12px 8px;background:#f7f8fc;border-radius:8px;overflow-wrap:anywhere}
+.stats small{display:block;font-size:9px;color:#737d94;margin-bottom:8px}
+.stats strong{font-size:19px}
+.section-label{color:#6255e7;font-size:11px;font-weight:bold;letter-spacing:1.5px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.steps article{padding:15px;background:#f7f8fc;border-radius:10px}
+.steps h3{font-size:15px}
+.steps p{font-size:12px}
+footer{text-align:center;padding:25px;color:#8b93a8;font-size:12px}
+@media(max-width:750px){.layout{grid-template-columns:1fr}.steps{grid-template-columns:repeat(2,1fr)}.card{padding:15px}.tag{font-size:10px}}
+</style>
+</head>
+
+<body>
+<main>
+<header>
+  <div class="brand">▦ SudokuAI</div>
+  <div class="tag">● CSP ENGINE READY</div>
+</header>
+
+<section class="hero">
+  <small>ARTIFICIAL INTELLIGENCE PROJECT</small>
+  <h1>Solve smarter.<br><span>Think in constraints.</span></h1>
+  <p>Intelligent Sudoku solving using Constraint Satisfaction Problems,
+  recursive Backtracking, and the Minimum Remaining Values heuristic.</p>
+</section>
+
+<div class="layout">
+  <section class="card">
+    <span class="section-label">PUZZLE WORKSPACE</span>
+    <h2>Sudoku Grid</h2>
+    <p>Original clues are locked. Enter digits in the empty cells.</p>
+    <div id="board" class="board"></div>
+    <button class="secondary" id="sample">↻ Load Sample</button>
+    <button class="secondary" id="clear">Clear Grid</button>
+  </section>
+
+  <aside>
+    <section class="card">
+      <span class="section-label">SOLVER CONTROLS</span>
+      <h2>Find the solution</h2>
+      <p>Let the CSP engine find a valid assignment for every empty cell.</p>
+      <button class="primary" id="solve">✦ Solve Sudoku →</button>
+      <button class="outline" id="check">Check Constraints</button>
+      <div id="status" class="status">Sample puzzle ready. Click Solve Sudoku to begin.</div>
+      <div class="stats">
+        <div><small>SEARCH ATTEMPTS</small><strong id="attempts">0</strong></div>
+        <div><small>EMPTY CELLS</small><strong id="empty">0</strong></div>
+        <div><small>SOLVE TIME</small><strong id="time">—</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <span class="section-label">AI METHODOLOGY</span>
+      <h2>Under the hood</h2>
+      <p><b>CSP:</b> cells are variables, possible digits are domains, and Sudoku rules are constraints.</p>
+      <p><b>Backtracking:</b> tries a value and undoes it if it leads to a dead end.</p>
+      <p><b>MRV:</b> selects the empty cell with the fewest legal candidates.</p>
+    </section>
+  </aside>
+</div>
+
+<section class="card">
+  <span class="section-label">THE AI APPROACH</span>
+  <h2>From constraints to solution</h2>
+  <div class="steps">
+    <article><h3>01 Variables</h3><p>Each of the 81 cells is a variable.</p></article>
+    <article><h3>02 Domains</h3><p>Each empty cell can contain digits 1–9.</p></article>
+    <article><h3>03 Constraints</h3><p>No repeated digits in rows, columns, or boxes.</p></article>
+    <article><h3>04 Backtracking</h3><p>Try candidates and reverse failed assignments.</p></article>
+  </div>
+</section>
+
+<footer>SudokuAI · CSP + Backtracking · Runs in your browser</footer>
+</main>
+
+<script>
+const sample=[
+[5,3,0,0,7,0,0,0,0],
+[6,0,0,1,9,5,0,0,0],
+[0,9,8,0,0,0,0,6,0],
+[8,0,0,0,6,0,0,0,3],
+[4,0,0,8,0,3,0,0,1],
+[7,0,0,0,2,0,0,0,6],
+[0,6,0,0,0,0,2,8,0],
+[0,0,0,4,1,9,0,0,5],
+[0,0,0,0,8,0,0,7,9]
+];
+let cells=[],givens=new Set(),attempts=0;
+
+const $=id=>document.getElementById(id);
+function status(message,type=""){
+  $("status").textContent=message;
+  $("status").className="status "+type;
+}
+function updateEmpty(){
+  $("empty").textContent=cells.flat().filter(x=>!x.value).length;
+}
+function makeBoard(puzzle){
+  $("board").innerHTML="";
+  cells=[];givens=new Set();
+  for(let r=0;r<9;r++){
+    cells[r]=[];
+    for(let c=0;c<9;c++){
+      const el=document.createElement("input");
+      el.className="cell";
+      el.maxLength=1;
+      el.inputMode="numeric";
+      el.setAttribute("aria-label",`Row ${r+1} column ${c+1}`);
+      if(puzzle[r][c]){
+        el.value=puzzle[r][c];
+        el.readOnly=true;
+        el.classList.add("given");
+        givens.add(`${r},${c}`);
+      }
+      el.addEventListener("input",()=>{
+        el.value=el.value.replace(/[^1-9]/g,"").slice(-1);
+        clearConflictStyles();
+        updateEmpty();
+        status("Grid updated. Check constraints or solve the puzzle.");
+      });
+      $("board").appendChild(el);
+      cells[r][c]=el;
+    }
+  }
+  $("attempts").textContent="0";
+  $("time").textContent="—";
+  updateEmpty();
+}
+function readBoard(){
+  return cells.map(row=>row.map(x=>x.value?Number(x.value):0));
+}
+function clearConflictStyles(){
+  cells.flat().forEach(x=>x.classList.remove("conflict"));
+}
+function findConflicts(board){
+  const bad=new Set();
+  function check(coords){
+    const seen={};
+    for(const [r,c] of coords){
+      const v=board[r][c];
+      if(!v)continue;
+      (seen[v]??=[]).push([r,c]);
+    }
+    Object.values(seen).forEach(group=>{
+      if(group.length>1)group.forEach(([r,c])=>bad.add(`${r},${c}`));
+    });
+  }
+  for(let r=0;r<9;r++)
+    check(Array.from({length:9},(_,c)=>[r,c]));
+  for(let c=0;c<9;c++)
+    check(Array.from({length:9},(_,r)=>[r,c]));
+  for(let br=0;br<9;br+=3)
+    for(let bc=0;bc<9;bc+=3){
+      const coords=[];
+      for(let r=br;r<br+3;r++)
+        for(let c=bc;c<bc+3;c++)coords.push([r,c]);
+      check(coords);
+    }
+  return bad;
+}
+function candidates(board,r,c){
+  const used=new Set();
+  for(let i=0;i<9;i++){
+    if(board[r][i])used.add(board[r][i]);
+    if(board[i][c])used.add(board[i][c]);
+  }
+  const br=Math.floor(r/3)*3,bc=Math.floor(c/3)*3;
+  for(let rr=br;rr<br+3;rr++)
+    for(let cc=bc;cc<bc+3;cc++)
+      if(board[rr][cc])used.add(board[rr][cc]);
+  return [1,2,3,4,5,6,7,8,9].filter(v=>!used.has(v));
+}
+function solveCSP(board){
+  let best=null,optionsBest=null;
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      if(board[r][c]!==0)continue;
+      const opts=candidates(board,r,c);
+      if(!opts.length)return false;
+      if(optionsBest===null||opts.length<optionsBest.length){
+        best=[r,c];optionsBest=opts;
+        if(opts.length===1)break;
+      }
+    }
+    if(optionsBest&&optionsBest.length===1)break;
+  }
+  if(best===null)return true;
+  const [r,c]=best;
+  for(const v of optionsBest){
+    attempts++;
+    board[r][c]=v;
+    if(solveCSP(board))return true;
+    board[r][c]=0;
+  }
+  return false;
+}
+function showConflicts(bad){
+  for(const key of bad){
+    const [r,c]=key.split(",").map(Number);
+    cells[r][c].classList.add("conflict");
+  }
+}
+$("solve").addEventListener("click",()=>{
+  clearConflictStyles();
+  const board=readBoard(),bad=findConflicts(board);
+  if(bad.size){
+    showConflicts(bad);
+    status("Duplicate digits found. Correct the highlighted cells.","bad");
+    return;
+  }
+  attempts=0;
+  const start=performance.now();
+  const success=solveCSP(board);
+  $("time").textContent=(performance.now()-start).toFixed(2)+" ms";
+  $("attempts").textContent=attempts;
+  if(!success){
+    status("No solution found. Check the puzzle clues.","bad");
+    return;
+  }
+  for(let r=0;r<9;r++)
+    for(let c=0;c<9;c++){
+      cells[r][c].value=board[r][c];
+      if(!givens.has(`${r},${c}`))cells[r][c].classList.add("solved");
+    }
+  updateEmpty();
+  status("Solved successfully using CSP, MRV and backtracking!","good");
+});
+$("check").addEventListener("click",()=>{
+  clearConflictStyles();
+  const board=readBoard(),bad=findConflicts(board);
+  if(bad.size){
+    showConflicts(bad);
+    status("Conflicts found. Check the highlighted cells.","bad");
+  }else{
+    const n=board.flat().filter(v=>v===0).length;
+    status(n?`No conflicts found. ${n} empty cells remain.`:
+      "Completed board satisfies all Sudoku constraints.","good");
+  }
+});
+$("sample").addEventListener("click",()=>{
+  makeBoard(sample);
+  status("Sample puzzle loaded. Click Solve Sudoku.");
+});
+$("clear").addEventListener("click",()=>{
+  makeBoard(Array.from({length:9},()=>Array(9).fill(0)));
+  status("Grid cleared. Enter your own puzzle or load the sample.");
+});
+makeBoard(sample);
+</script>
+</body>
+</html>
+```
